@@ -6,9 +6,9 @@ set(CMOCKA_SOURCE
 	 ${CMAKE_SOURCE_DIR}/cmocka/src/cmocka.c
 	 ${CMAKE_SOURCE_DIR}/cmocka/src/cmocka.def)
 	 
-# List of tests and their flags
+# ADD YOUR TEST HERE!!!
 LIST(APPEND tests_names "coding_layer_test")
-LIST(APPEND tests_flags " ")
+
 
 # Declare all tests targets
 ENABLE_TESTING()
