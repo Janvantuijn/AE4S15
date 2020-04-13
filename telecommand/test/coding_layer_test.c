@@ -2,12 +2,27 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include "cltu.h"
 
-void null_test_success (void ** state) {}
+void cltu_init_test (void ** state) {
+    cltu_t cltu;
+    
+    cltu_init(&cltu);    
+    assert_int_equal(cltu.start_seq, CLTU_START_SEQUENCE);
+}
 
-void null_test_fail (void ** state)
-{
-    assert_true (0);
+void cltu_start_seq_check_succ_test (void ** state) {
+    cltu_t cltu;
+    
+    cltu_init(&cltu);
+    assert_true(cltu_start_seq_check(&cltu));
+}
+
+void cltu_start_seq_check_fail_test (void ** state) {
+    cltu_t cltu;
+    
+    cltu.start_seq = 0xF0F0;
+    assert_false(cltu_start_seq_check(&cltu));
 }
 
 /* These functions will be used to initialize
@@ -27,8 +42,10 @@ int main (void)
 {
     const struct CMUnitTest tests [] =
     {
-        cmocka_unit_test (null_test_success),
-        cmocka_unit_test (null_test_fail),
+        cmocka_unit_test (cltu_init_test),
+        cmocka_unit_test (cltu_start_seq_check_succ_test),
+        cmocka_unit_test (cltu_start_seq_check_fail_test),
+       
     };
 
     /* If setup and teardown functions are not
