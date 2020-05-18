@@ -19,7 +19,7 @@
 #include <cr_section_macros.h>
 
 // TODO: insert other include files here
-
+#include "physical_layer.h"
 // TODO: insert other definitions and declarations here
 
 int main(void) {
@@ -37,6 +37,7 @@ int main(void) {
 #endif
 
     // TODO: insert code here
+    phy_init();
 
     // Force the counter to be placed into memory
     volatile static int i = 0 ;

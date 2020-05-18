@@ -30,12 +30,14 @@
  */
 
 #include "chip.h"
+#include "physical_layer.h"
 
 #if !defined(CHIP_LPC110X)
 
 /*****************************************************************************
  * Private types/enumerations/variables
  ****************************************************************************/
+static I2C_PHY_EVENT i2c_phy_event = I2C_DEACTIVATED;
 
 /* Control flags */
 #define I2C_CON_FLAGS (I2C_CON_AA | I2C_CON_SI | I2C_CON_STO | I2C_CON_STA)
@@ -69,6 +71,19 @@ static struct i2c_slave_interface i2c_slave[I2C_NUM_INTERFACE][I2C_SLAVE_NUM_INT
 /*****************************************************************************
  * Public types/enumerations/variables
  ****************************************************************************/
+I2C_PHY_EVENT Chip_I2C_get_activation_state() {
+	I2C_PHY_EVENT ret = i2c_phy_event;
+	switch(ret) {
+		case I2C_ACTIVATED:
+			break;
+		case I2C_DEACTIVATED:
+			i2c_phy_event = I2C_ACTIVATED;
+			break;
+	}
+
+	return ret;
+}
+
 
 /*****************************************************************************
  * Private functions
@@ -305,6 +320,7 @@ int handleSlaveXferState(LPC_I2C_T *pI2C, I2C_XFER_T *xfer)
 	case 0x98:		/* GC: Data received + NAK sent */
 	case 0xA0:		/* STOP/Repeated START condition received */
 		ret = RET_SLAVE_IDLE;
+		i2c_phy_event = I2C_DEACTIVATED;
 		cclr &= ~I2C_CON_AA;
 		xfer->status = I2C_STATUS_DONE;
 		if (xfer->slaveAddr & 1) {

@@ -32,6 +32,8 @@
 #ifndef __I2C_11XX_H_
 #define __I2C_11XX_H_
 
+#include "core_cm0.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -296,6 +298,13 @@ typedef enum {
 	I2C_EVENT_SLAVE_RX,	/**< Slave receive event */
 	I2C_EVENT_SLAVE_TX,	/**< Slave transmit event */
 } I2C_EVENT_T;
+
+typedef enum {
+	I2C_ACTIVATED = 0,
+	I2C_DEACTIVATED
+} I2C_PHY_EVENT;
+
+I2C_PHY_EVENT Chip_I2C_get_activation_state();
 
 /**
  * @brief	Event handler function type
