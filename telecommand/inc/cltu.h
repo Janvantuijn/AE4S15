@@ -17,7 +17,9 @@ typedef struct {
 } cltu_t;
 
 void cltu_init(cltu_t * cltu);
-void cltu_insert(cltu_t * cltu, uint8_t data, size_t size);
+void cltu_clear(cltu_t * cltu);
+void cltu_insert(cltu_t * cltu, uint8_t * data, size_t size);
+bool cltu_get_data(const cltu_t * cltu, size_t index, uint8_t * data);
 bool cltu_start_seq_check(const cltu_t * cltu);
 bool cltu_tail_seq_check(const cltu_t * cltu);
 size_t cltu_size(const cltu_t * cltu);

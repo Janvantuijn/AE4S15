@@ -74,7 +74,7 @@ bool phy_get_state(void) {
 static phy_tx_event_t phy_tx_event_handler(phy_tx_event_t event)
 {
 	int ret = 0;
-	int i = 0;
+
 	switch (event)
 	{
 		case PHY_TX_DONE:
@@ -90,25 +90,26 @@ static phy_tx_event_t phy_tx_event_handler(phy_tx_event_t event)
 				phy_id_transmitting = -1;
 				return PHY_IDLE;
 			}
-			break;
 		case PHY_TX_NEW_CLTU: {
 			cltu_t * cltu = phy_cltu_transmitting;
 			// Copy CLTU data to PHY buffer 
 			buffer_insert(&phy_buffer, CH0);
 			buffer_insert(&phy_buffer, (cltu->start_seq >> 8) & 0xFF);
 			buffer_insert(&phy_buffer, cltu->start_seq & 0xFF);
-			// for (i = 0; i < cltu_size(cltu); i++) {
-			// 	buffer_insert(&phy_buffer, cltu->code_blocks[i]);
-			// } 
+			 for (int i = 0; i < cltu_code_block_size(cltu); i++) {
+			 	uint8_t data;
+				cltu_get_data(cltu, i, &data);
+			 	buffer_insert(&phy_buffer, data);
+			 }
 			buffer_insert(&phy_buffer, cltu->tail_seq);
-			break; 
+			return PHY_TX_TRANSMIT;
 		} 
 		case PHY_TX_TRANSMIT:
 			// TODO: sizeof cltu can be bigger than uint8
-			ret = Chip_I2C_MasterSend(i2c_id, I2C_SLAVE_ADDRESS, phy_buffer.array, cltu_size(phy_cltu_transmitting));		
+			ret = Chip_I2C_MasterSend(i2c_id, I2C_SLAVE_ADDRESS, phy_buffer.array, phy_buffer.size);		
 			return PHY_TX_DONE;
 		default:
-		break;
+			return PHY_IDLE;
 	}
 
 	return PHY_IDLE;

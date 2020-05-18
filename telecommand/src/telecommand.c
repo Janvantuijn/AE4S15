@@ -22,6 +22,8 @@
 #include "physical_layer.h"
 // TODO: insert other definitions and declarations here
 
+cltu_t cltu;
+
 int main(void) {
 
 #if defined (__USE_LPCOPEN)
@@ -36,14 +38,17 @@ int main(void) {
 #endif
 #endif
 
-    // TODO: insert code here
     phy_init();
-
-    // Force the counter to be placed into memory
-    volatile static int i = 0 ;
-    // Enter an infinite loop, just incrementing a counter
+    cltu_init(&cltu);
+    uint8_t data[2] = {0xBE, 0xEF};
+    cltu_insert(&cltu, data, 2);
+    request_id_t id = 0;
     while(1) {
-        i++ ;
+        phy_transmit_request(&cltu, id++);
+    	phy_run();
+        for (volatile unsigned int i = 0; i < 100000; i++) {
+
+        }
     }
     return 0 ;
 }

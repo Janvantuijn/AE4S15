@@ -31,7 +31,8 @@ set(TEST_SOURCES
     )
 
 # ADD YOUR TEST HERE!!!
-LIST(APPEND tests_names "test_coding_layer")
+LIST(APPEND tests_names "test_cltu")
+LIST(APPEND tests_names "test_code_block")
 LIST(APPEND tests_names "test_buffer")
 LIST(APPEND tests_names "test_phy_master")
 LIST(APPEND tests_names "test_phy_slave")
@@ -56,6 +57,6 @@ setup_target_for_coverage_gcovr_html(
     NAME test_coverage                          # New target name
     EXECUTABLE ctest      # Executable in PROJECT_BINARY_DIR
     BASE_DIRECTORY ${CMAKE_BINARY_DIR}
-    DEPENDENCIES test_coding_layer test_buffer test_phy_master test_phy_slave
+    DEPENDENCIES test_cltu test_code_block test_buffer test_phy_master test_phy_slave
     EXCLUDE ${CMAKE_SOURCE_DIR}/cmocka/*
     )

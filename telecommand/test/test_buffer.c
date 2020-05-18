@@ -98,6 +98,28 @@ void buffer_is_full_test(void ** state) {
     assert_false(buffer_is_full(&buffer));
 }
 
+void buffer_clear_test (void ** state) {
+    buffer_t buffer;
+    uint8_t arr[BUFFER_SIZE];
+
+    buffer_init(&buffer, arr);
+    assert_false(buffer_is_full(&buffer));
+
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        buffer_insert(&buffer, i);
+    }
+    assert_true(buffer_is_full(&buffer));    
+
+    buffer_clear(&buffer);
+    assert_true(buffer_is_empty(&buffer));
+    assert_false(buffer_is_full(&buffer));
+
+    assert_int_equal(buffer.size, 0);
+    assert_int_equal(buffer.front, 0);
+    assert_int_equal(buffer.rear, -1);
+
+}
+
 /* These functions will be used to initialize
    and clean resources up after each test run */
 int setup (void ** state)
@@ -119,7 +141,8 @@ int main (void)
         cmocka_unit_test(buffer_peek_test),
         cmocka_unit_test(buffer_is_empty_test),
         cmocka_unit_test(buffer_is_full_test),
-        cmocka_unit_test(buffer_is_circular)
+        cmocka_unit_test(buffer_is_circular),
+        cmocka_unit_test(buffer_clear_test)
     };
 
     /* If setup and teardown functions are not
