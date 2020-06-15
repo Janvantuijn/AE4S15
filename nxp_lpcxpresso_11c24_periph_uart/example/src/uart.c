@@ -127,6 +127,7 @@ int main(void)
 
 	/* Poll the receive ring buffer for the ESC (ASCII 27) key */
 	key = 0;
+
 	while (key != 27) {
 		bytes = Chip_UART_ReadRB(LPC_USART, &rxring, &key, 1);
 		if (bytes > 0) {

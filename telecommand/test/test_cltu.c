@@ -11,6 +11,14 @@ void cltu_init_test (void ** state) {
     assert_int_equal(cltu.start_seq, CLTU_START_SEQUENCE);
 }
 
+void cltu_tail_sequence_test( void ** test) {
+    cltu_t cltu;
+    
+    cltu_init(&cltu);
+
+    assert_int_equal(cltu.tail_seq, );
+}
+
 void cltu_start_seq_check_succ_test (void ** state) {
     cltu_t cltu;
     
@@ -133,7 +141,8 @@ int main (void)
         cmocka_unit_test (cltu_start_seq_check_fail_test),
         cmocka_unit_test (cltu_clear_test),
         cmocka_unit_test (cltu_insert_test),
-        cmocka_unit_test (cltu_get_data_test)
+        cmocka_unit_test (cltu_get_data_test),
+        cmocka_unit_test (cltu_tail_sequence_test),
        
     };
 

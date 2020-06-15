@@ -1,47 +1,76 @@
 #include "cltu.h"
+#include "crc.h"
 
+/**
+ * @brief Initializes the cltu block
+ * 
+ * @param cltu, pointer to cltu block that will be initialized
+ */
 void cltu_init(cltu_t * cltu) {
     cltu->start_seq = CLTU_START_SEQUENCE;
     cltu->size = 0;
-    for (int i = 0; i < MAX_CODE_BLOCKS; i++) {
-        cltu->code_blocks[i].size = 0;
-    }
-    // TODO: tail_seq
+    cltu->block_index = 0;
 }
 
+/**
+ * @brief Clears the content of the cltu block
+ * 
+ * @param cltu, pointer to cltu block that will be cleared
+ */
 void cltu_clear(cltu_t * cltu) {
     cltu->size = 0;
-    for (int i = 0; i < MAX_CODE_BLOCKS; i++) {
-        cltu->code_blocks[i].size = 0;
+    cltu->block_index = 0;
+
+    for (int i = 0; i < CODE_BLOCK_LENGTH; i++) {
+    	cltu->tail_seq.info_field[i] = 0;
     }
 }
 
-void cltu_insert(cltu_t * cltu, uint8_t * data, size_t size) {
-    if (size == 0) {
-        return;
-    }
+void cltu_insert_byte(cltu_t * cltu, const uint8_t data) {
+	if (cltu->size == 0) {
+		cltu->size = 1;
+	} else if (cltu->block_index == CODE_BLOCK_LENGTH) {
+		cltu->size++;
+		cltu->block_index = 0;
+	}
 
-    for (int j = 0; j < size / CODE_BLOCK_LENGTH + 1; j++) {
-    	code_block_t * block = &cltu->code_blocks[j];
-    	for (int i = 0; i < CODE_BLOCK_LENGTH && j * CODE_BLOCK_LENGTH + i < size; i++) {
-    		block->info_field[i] = data[j * CODE_BLOCK_LENGTH + i];
-    		block->size++;
-    	}
-    	cltu->size++;
+	code_block_t * current_block = &(cltu->code_blocks[cltu->size - 1]);
+	current_block->info_field[cltu->block_index++] = data;
+
+	// Update checksum of this block
+	current_block->error_control_field = crc(current_block->info_field, CODE_BLOCK_LENGTH);
+}
+
+/**
+ * @brief Copies the given data array to the given cltu 
+ * 
+ * @param cltu, pointer to cltu block that will be given data
+ * @param data, pointer to data array that will be copied to cltu 
+ * @param size, size of of the data array
+ */
+void cltu_insert_bytes(cltu_t * cltu, const uint8_t * data, const size_t size) {
+    for (int i = 0; i < size; i++) {
+    	cltu_insert_byte(cltu, data[i]);
     }
 }
 
-bool cltu_get_data(const cltu_t * cltu, size_t index, uint8_t * data) {
-	int j = index / CODE_BLOCK_LENGTH;
-    if (j >= cltu->size) {return false;}
+void cltu_calc_tail_sequence(cltu_t * cltu) {
+	code_block_t * tail_sequence = &(cltu->tail_seq);
+	tail_sequence->error_control_field = crc(tail_sequence->info_field, CODE_BLOCK_LENGTH);
 
-	int i = index - j * CODE_BLOCK_LENGTH;
-    if (i >= cltu->code_blocks[j].size) {return false;}
-
-	*data = cltu->code_blocks[j].info_field[i];
-    return true;
+	// Intentionally insert faulty bits in the tail sequence
+	for (int i = 0; i < CODE_BLOCK_LENGTH; i++) {
+		tail_sequence->info_field[i] += 1;
+	}
 }
-    
+
+/**
+ * @brief Checks if the start sequence of the cltu is correct
+ * 
+ * @param cltu, pointer to the cltu whose start sequence needs to be checked
+ * @return true, returned when the start sequence is correct
+ * @return false, returned when the start sequence is incorrect
+ */
 bool cltu_start_seq_check(const cltu_t * cltu) {
     if (cltu->start_seq != CLTU_START_SEQUENCE) {
         return false;
@@ -50,24 +79,13 @@ bool cltu_start_seq_check(const cltu_t * cltu) {
     }
 }
 
+/**
+ * @brief Checks if the tail sequence of the cltu is correct
+ * 
+ * @param cltu, pointer to the cltu whose tail sequence needs to be checked
+ * @return true, returned when the tail sequence is correct
+ * @return false, returned when the tail sequence is incorrect.
+ */
 bool cltu_tail_seq_check(const cltu_t * cltu) {
     return false;
 }
-
-/* Total size of this CLTU in bytes */
-size_t cltu_size(const cltu_t * cltu) {
-    size_t size = sizeof(cltu->start_seq);
-    size += cltu_code_block_size(cltu);
-    size += sizeof(cltu->tail_seq);
-    return size;
-}
-
-/* Size of all code blocks of this CLTU in bytes */
-size_t cltu_code_block_size(const cltu_t * cltu) {
-    size_t size = 0;
-    for (int i = 0; i < cltu->size; i++) {
-        size += code_block_size(&cltu->code_blocks[i]);
-    }
-    return size;
-}
-

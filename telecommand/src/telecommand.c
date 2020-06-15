@@ -20,6 +20,8 @@
 
 // TODO: insert other include files here
 #include "physical_layer.h"
+#include "coding_layer.h"
+#include "transfer_layer.h"
 // TODO: insert other definitions and declarations here
 
 cltu_t cltu;
@@ -38,14 +40,24 @@ int main(void) {
 #endif
 #endif
 
+
+    const uint8_t data[12] = "Hello World!";
+    int16_t frame_number;
+
     phy_init();
-    cltu_init(&cltu);
-    uint8_t data[2] = {0xBE, 0xEF};
-    cltu_insert(&cltu, data, 2);
-    request_id_t id = 0;
+    coding_layer_init();
+
     while(1) {
-        phy_transmit_request(&cltu, id++);
-    	phy_run();
+    	// Send message
+     	frame_number = transfer_layer_send_message(data, 12);
+
+//     	// Check acknowledge
+//     	ack_response_t ack = CLCW_NOT_UPDATED;
+//    	while (ack == CLCW_NOT_UPDATED) {
+//    		ack = transfer_layer_check_ack(frame_number);
+//    	}
+
+    	// Wait some time
         for (volatile unsigned int i = 0; i < 100000; i++) {
 
         }

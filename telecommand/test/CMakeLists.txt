@@ -3,6 +3,7 @@ project("unit tests")
 
 set(MAIN_PROJECT ${CMAKE_SOURCE_DIR}/../)
 include_directories(${MAIN_PROJECT}/inc)
+include_directories(${MAIN_PROJECT}/src)
 include_directories(${MAIN_PROJECT}/../lpc_chip_11cxx_lib/inc)
 include_directories(${MAIN_PROJECT}/../nxp_lpcxpresso_11c24_board_lib/inc)
 add_definitions(-DCORE_M0 -D__USE_LPCOPEN)
@@ -25,8 +26,8 @@ set(TEST_SOURCES
     ${MAIN_PROJECT}/../lpc_chip_11cxx_lib/src/ring_buffer.c
     ${MAIN_PROJECT}/../nxp_lpcxpresso_11c24_board_lib/src/board.c
     ${MAIN_PROJECT}/src/coding_layer/cltu.c
+    ${MAIN_PROJECT}/src/coding_layer/crc.c
     ${MAIN_PROJECT}/src/coding_layer/code_block.c
-    ${MAIN_PROJECT}/src/physical_layer/physical_layer.c
     ${MAIN_PROJECT}/src/buffer.c
     )
 
@@ -36,6 +37,7 @@ LIST(APPEND tests_names "test_code_block")
 LIST(APPEND tests_names "test_buffer")
 LIST(APPEND tests_names "test_phy_master")
 LIST(APPEND tests_names "test_phy_slave")
+LIST(APPEND tests_names "test_crc")
 
 # Declare all tests targets
 ENABLE_TESTING()

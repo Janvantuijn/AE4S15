@@ -1,8 +1,8 @@
 /*
  * physical_layer.c
  *
- *  Created on: May 14, 2020
- *      Author: jan
+ * Created on: May 14, 2020
+ * Author: jan
  */
 
 #include "physical_layer.h"
@@ -11,8 +11,7 @@
 #define I2C_SLAVE_ADDRESS 0x67
 #define I2C_BUFFER_SIZE 10
 
-static int phy_is_active = false;
-static phy_tx_event_t next_event = PHY_IDLE;
+static int phy_is_active = 0;
 
 // I2C structs and buffers
 const static I2C_ID_T i2c_id = I2C0;
@@ -20,19 +19,19 @@ static I2C_XFER_T i2c_xfer;
 static uint8_t i2c_buffer[I2C_BUFFER_SIZE];
 
 // PHY structs and buffers
-static uint8_t phy_buffer_arr[BUFFER_SIZE];
-static buffer_t phy_buffer;
+static volatile uint8_t phy_buffer_arr[BUFFER_SIZE];
+static volatile buffer_t phy_buffer;
 
-static cltu_t * phy_cltu_transmitting = NULL;
-static cltu_t * phy_cltu_pending = NULL;
-static request_id_t phy_id_transmitting = -1;
-static request_id_t phy_id_pending = -1;
-
-static phy_tx_event_t phy_tx_event_handler(phy_tx_event_t event);
-static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event);
 static void Init_I2C_PinMux(void);
+static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event);
 static void i2c_state_handling(I2C_ID_T id);
 
+/* ------------------------- PUBLIC FUNCTIONS ------------------------------------ */
+
+/**
+ * @brief Initializes the Physical layer
+ * 
+ */
 void phy_init(void) {
 	Init_I2C_PinMux();
 
@@ -55,82 +54,39 @@ void phy_init(void) {
 #endif
 }
 
-void phy_run(void) {
-	next_event = phy_tx_event_handler(next_event);
-}
+/**
+ * @brief Transmits the given cltu
+ * 
+ * @param cltu, cltu that needs to be transmitted
+ * @param id, cltu identifier
+ * @return request_resp_t, CLTU_REJECT if rejected (transmission already in process), else CLTU_ACCPTED
+ */
+bool phy_transmit_request(cltu_t * cltu, request_id_t id) {
+	buffer_clear(&phy_buffer);
 
-void phy_activate(void) {
-	phy_is_active = 1;
-}
+	// Write channel number
+	buffer_insert(&phy_buffer, CH0);
 
-void phy_deactivate(void) {
-	phy_is_active = 0;
-}
+	// write start sequence
+	buffer_insert(&phy_buffer, (cltu->start_seq >> 8) & 0xFF);
+	buffer_insert(&phy_buffer, cltu->start_seq & 0xFF);
 
-bool phy_get_state(void) {
-	return (phy_is_active == 1);
-}
-
-static phy_tx_event_t phy_tx_event_handler(phy_tx_event_t event)
-{
-	int ret = 0;
-
-	switch (event)
-	{
-		case PHY_TX_DONE:
-			if (phy_cltu_pending != NULL) {
-				// Copy pending CLTU to transmitting CLTU
-				phy_cltu_transmitting = phy_cltu_pending;
-				phy_cltu_pending = NULL;
-				phy_id_transmitting = phy_id_pending;
-				phy_id_pending = -1;
-				return PHY_TX_NEW_CLTU;
-			} else {
-				phy_cltu_transmitting = NULL;
-				phy_id_transmitting = -1;
-				return PHY_IDLE;
-			}
-		case PHY_TX_NEW_CLTU: {
-			cltu_t * cltu = phy_cltu_transmitting;
-			// Copy CLTU data to PHY buffer 
-			buffer_insert(&phy_buffer, CH0);
-			buffer_insert(&phy_buffer, (cltu->start_seq >> 8) & 0xFF);
-			buffer_insert(&phy_buffer, cltu->start_seq & 0xFF);
-			 for (int i = 0; i < cltu_code_block_size(cltu); i++) {
-			 	uint8_t data;
-				cltu_get_data(cltu, i, &data);
-			 	buffer_insert(&phy_buffer, data);
-			 }
-			buffer_insert(&phy_buffer, cltu->tail_seq);
-			return PHY_TX_TRANSMIT;
-		} 
-		case PHY_TX_TRANSMIT:
-			// TODO: sizeof cltu can be bigger than uint8
-			ret = Chip_I2C_MasterSend(i2c_id, I2C_SLAVE_ADDRESS, phy_buffer.array, phy_buffer.size);		
-			return PHY_TX_DONE;
-		default:
-			return PHY_IDLE;
+	// Write code blocks
+	for (int i = 0; i < cltu->size * (CODE_BLOCK_LENGTH + 2); i++) {
+		buffer_insert(&phy_buffer, ((uint8_t*)cltu->code_blocks)[i]);
 	}
 
-	return PHY_IDLE;
-}
-
-request_resp_t phy_transmit_request(cltu_t * cltu, request_id_t id) {
-
-	if (phy_cltu_pending != NULL) {
-		return CLTU_REJECTED;
-	} else if (phy_cltu_transmitting == NULL)  {
-		phy_cltu_transmitting = cltu;
-		phy_id_transmitting = id;
-		next_event = PHY_TX_NEW_CLTU;
-		return CLTU_ACCEPTED;
-	} else if (phy_cltu_pending == NULL) {
-		phy_cltu_pending = cltu;
-		phy_id_pending = id;
-		return CLTU_ACCEPTED;
+	// Write tail sequence
+	for (int i = 0; i < CODE_BLOCK_LENGTH + 2; i++) {
+		buffer_insert(&phy_buffer, ((uint8_t*)&cltu->tail_seq)[i]);
 	}
 
-	return CLTU_REJECTED;
+	Chip_I2C_MasterSend(i2c_id, I2C_SLAVE_ADDRESS, phy_buffer.array, phy_buffer.size);
+	return true;
+}
+
+bool phy_clcw_request(clcw_t * clcw) {
+	return Chip_I2C_MasterRead(i2c_id, I2C_SLAVE_ADDRESS, (uint8_t*)clcw, sizeof(clcw_t));
 }
 
 /* Slave event handler for simulated EEPROM */
@@ -156,10 +112,10 @@ static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event)
 		 */
 #ifdef I2C_SLAVE
 		if (Chip_I2C_get_activation_state() == I2C_DEACTIVATED) {
-			phy_deactivate();
+			phy_activated = 0;
 		}
 
-		if (phy_get_state()) {
+		if (phy_is_active == 1) {
 			// Copy data from I2C buffer to PHY buffer
 			if (!buffer_is_full(&phy_buffer)) {
 				buffer_insert(&phy_buffer, i2c_buffer[0]);
@@ -167,9 +123,9 @@ static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event)
 
 		} else {
 			if (i2c_buffer[0] ==  1) { // First after activation is always the channel
-				phy_activate();
+				phy_is_active = 1;
 			} else {
-				phy_deactivate();
+				phy_is_active = 0;
 			}
 		}
 #endif
@@ -190,8 +146,6 @@ static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event)
 
 #endif
 		break;
-		//seep_data[0]++;
-		//seep_data[0] &= (I2C_SLAVE_EEPROM_SIZE - 1);
 		if (i2c_xfer.txSz == 1) {
 			//i2c_eeprom_update_state(&seep_xfer, seep_data, I2C_SLAVE_EEPROM_SIZE);
 		}
