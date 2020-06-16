@@ -28,11 +28,15 @@
 #include "cltu.h"
 #include "clcw.h"
 #include "i2c_11xx.h"
+#include "ring_buffer.h"
 
 typedef uint32_t request_id_t;
 
 void phy_init(void);
 bool phy_transmit_request(cltu_t * cltu, request_id_t id);
 bool phy_clcw_request(clcw_t * clcw);
+
+bool phy_is_activated(void);
+bool phy_get_data(uint8_t * data);
 
 #endif // PHYSICAL_LAYER_H

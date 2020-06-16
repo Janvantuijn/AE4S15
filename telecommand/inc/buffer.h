@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define BUFFER_SIZE 1000
+#define BUFFER_SIZE 0x400
 
 typedef struct {
     uint8_t * array;

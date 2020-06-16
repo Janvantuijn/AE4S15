@@ -19,6 +19,7 @@
 #include <cr_section_macros.h>
 
 // TODO: insert other include files here
+#include "system_config.h"
 #include "physical_layer.h"
 #include "coding_layer.h"
 #include "transfer_layer.h"
@@ -41,26 +42,36 @@ int main(void) {
 #endif
 
 
-    const uint8_t data[12] = "Hello World!";
-    int16_t frame_number;
-
     phy_init();
     coding_layer_init();
+    transfer_layer_init();
 
     while(1) {
+#ifdef GROUNDSTATION
+        const uint8_t data[12] = "Hello World!";
+        int16_t frame_number;
+
     	// Send message
      	frame_number = transfer_layer_send_message(data, 12);
 
 //     	// Check acknowledge
-//     	ack_response_t ack = CLCW_NOT_UPDATED;
-//    	while (ack == CLCW_NOT_UPDATED) {
-//    		ack = transfer_layer_check_ack(frame_number);
-//    	}
+     	ack_response_t ack = CLCW_NOT_UPDATED;
+    	while (ack == CLCW_NOT_UPDATED) {
+    		ack = transfer_layer_check_ack(frame_number);
+    	}
 
-    	// Wait some time
-        for (volatile unsigned int i = 0; i < 100000; i++) {
+#else
+    	uint8_t data[12];
+    	uint8_t length = 12;
 
-        }
+    	coding_layer_run();
+    	transfer_layer_run();
+
+    	int16_t ret = transfer_layer_receive_message(data, &length);
+    	if (ret >= 0) {
+    		ret++;
+    	}
+#endif
     }
     return 0 ;
 }

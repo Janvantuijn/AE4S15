@@ -27,7 +27,6 @@ set(TEST_SOURCES
     ${MAIN_PROJECT}/../nxp_lpcxpresso_11c24_board_lib/src/board.c
     ${MAIN_PROJECT}/src/coding_layer/cltu.c
     ${MAIN_PROJECT}/src/coding_layer/crc.c
-    ${MAIN_PROJECT}/src/coding_layer/code_block.c
     ${MAIN_PROJECT}/src/buffer.c
     )
 

@@ -1,5 +1,5 @@
 
-/* Define whether this build is for a satellite or ground station */
+// Define whether this build is for a satellite or ground station
 #define GROUNDSTATION
 //#define SATELLITE
 

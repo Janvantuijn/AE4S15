@@ -7,6 +7,9 @@
 #include "code_block.h"
 
 #define CLTU_START_SEQUENCE 0xEB90
+#define CLTU_START_SEQUENCE_MSB 0xEB
+#define CLTU_START_SEQUENCE_LSB 0x90
+
 #define MAX_CODE_BLOCKS 64
 
 typedef struct {

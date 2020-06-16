@@ -20,7 +20,9 @@ static uint8_t i2c_buffer[I2C_BUFFER_SIZE];
 
 // PHY structs and buffers
 static volatile uint8_t phy_buffer_arr[BUFFER_SIZE];
-static volatile buffer_t phy_buffer;
+
+static buffer_t phy_tx_buffer;
+static RINGBUFF_T phy_rx_buffer;
 
 static void Init_I2C_PinMux(void);
 static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event);
@@ -39,18 +41,20 @@ void phy_init(void) {
 	Chip_I2C_Init(i2c_id);
 	Chip_I2C_SetClockRate(i2c_id, I2C_DEFAULT_SPEED);
 
-	buffer_init(&phy_buffer, phy_buffer_arr);
 
 	Chip_I2C_SetMasterEventHandler(i2c_id, Chip_I2C_EventHandler);
 	NVIC_EnableIRQ(I2C0_IRQn);
 
 #ifdef I2C_SLAVE
+	RingBuffer_Init(&phy_rx_buffer, (void*)phy_buffer_arr, sizeof(uint8_t), BUFFER_SIZE);
 	i2c_xfer.slaveAddr = (I2C_SLAVE_ADDRESS << 1);
 	i2c_xfer.txBuff = NULL;
 	i2c_xfer.rxBuff = i2c_buffer;
 	i2c_xfer.txSz = 0;
 	i2c_xfer.rxSz = I2C_BUFFER_SIZE;
 	Chip_I2C_SlaveSetup(i2c_id, I2C_SLAVE_0, &i2c_xfer, i2c_slave_phy_events, 0);
+#else
+	buffer_init(&phy_tx_buffer, phy_buffer_arr);
 #endif
 }
 
@@ -62,31 +66,39 @@ void phy_init(void) {
  * @return request_resp_t, CLTU_REJECT if rejected (transmission already in process), else CLTU_ACCPTED
  */
 bool phy_transmit_request(cltu_t * cltu, request_id_t id) {
-	buffer_clear(&phy_buffer);
+	buffer_clear(&phy_tx_buffer);
 
 	// Write channel number
-	buffer_insert(&phy_buffer, CH0);
+	buffer_insert(&phy_tx_buffer, CH0);
 
 	// write start sequence
-	buffer_insert(&phy_buffer, (cltu->start_seq >> 8) & 0xFF);
-	buffer_insert(&phy_buffer, cltu->start_seq & 0xFF);
+	buffer_insert(&phy_tx_buffer, (cltu->start_seq >> 8) & 0xFF);
+	buffer_insert(&phy_tx_buffer, cltu->start_seq & 0xFF);
 
 	// Write code blocks
 	for (int i = 0; i < cltu->size * (CODE_BLOCK_LENGTH + 2); i++) {
-		buffer_insert(&phy_buffer, ((uint8_t*)cltu->code_blocks)[i]);
+		buffer_insert(&phy_tx_buffer, ((uint8_t*)cltu->code_blocks)[i]);
 	}
 
 	// Write tail sequence
 	for (int i = 0; i < CODE_BLOCK_LENGTH + 2; i++) {
-		buffer_insert(&phy_buffer, ((uint8_t*)&cltu->tail_seq)[i]);
+		buffer_insert(&phy_tx_buffer, ((uint8_t*)&cltu->tail_seq)[i]);
 	}
 
-	Chip_I2C_MasterSend(i2c_id, I2C_SLAVE_ADDRESS, phy_buffer.array, phy_buffer.size);
+	Chip_I2C_MasterSend(i2c_id, I2C_SLAVE_ADDRESS, phy_tx_buffer.array, phy_tx_buffer.size);
 	return true;
 }
 
 bool phy_clcw_request(clcw_t * clcw) {
 	return Chip_I2C_MasterRead(i2c_id, I2C_SLAVE_ADDRESS, (uint8_t*)clcw, sizeof(clcw_t));
+}
+
+bool phy_is_activated(void) {
+	return (phy_is_active == 1);
+}
+
+bool phy_get_data(uint8_t * data) {
+	return (RingBuffer_Pop(&phy_rx_buffer, data) == 1);
 }
 
 /* Slave event handler for simulated EEPROM */
@@ -112,17 +124,17 @@ static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event)
 		 */
 #ifdef I2C_SLAVE
 		if (Chip_I2C_get_activation_state() == I2C_DEACTIVATED) {
-			phy_activated = 0;
+			phy_is_active = 0;
 		}
 
 		if (phy_is_active == 1) {
 			// Copy data from I2C buffer to PHY buffer
-			if (!buffer_is_full(&phy_buffer)) {
-				buffer_insert(&phy_buffer, i2c_buffer[0]);
+			if (!RingBuffer_IsFull(&phy_rx_buffer)) {
+				RingBuffer_Insert(&phy_rx_buffer, (const void *)&(i2c_buffer[0]));
 			}
 
 		} else {
-			if (i2c_buffer[0] ==  1) { // First after activation is always the channel
+			if (i2c_buffer[0] ==  CH0) { // First after activation is always the channel
 				phy_is_active = 1;
 			} else {
 				phy_is_active = 0;
