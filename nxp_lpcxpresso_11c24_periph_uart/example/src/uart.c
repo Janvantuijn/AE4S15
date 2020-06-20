@@ -43,13 +43,15 @@ STATIC RINGBUFF_T txring, rxring;
 /* Transmit and receive ring buffer sizes */
 #define UART_SRB_SIZE 128	/* Send */
 #define UART_RRB_SIZE 32	/* Receive */
+#define MAX_COMMAND_LEN 7
 
 /* Transmit and receive buffers */
 static uint8_t rxbuff[UART_RRB_SIZE], txbuff[UART_SRB_SIZE];
 
-const char inst1[] = "LPC11xx UART example using ring buffers\r\n";
-const char inst2[] = "Press a key to echo it back or ESC to quit\r\n";
-
+const char inst1[] = "Telecommander CI\r\n";
+const char inst2[] = "Use SEND, SEND10, CORRUPT as commands\r\n";
+const char incorrect_msg[] = "Incorrect command. \r\n";
+const char ack_msg[] = "\r\n ACK \r\n";
 /*****************************************************************************
  * Public types/enumerations/variables
  ****************************************************************************/
@@ -71,6 +73,7 @@ static void Init_UART_PinMux(void)
 #endif
 }
 
+
 /*****************************************************************************
  * Public functions
  ****************************************************************************/
@@ -88,6 +91,35 @@ void UART_IRQHandler(void)
 	Chip_UART_IRQRBHandler(LPC_USART, &rxring, &txring);
 }
 
+void executeCommand(char *command)
+{
+	uint8_t toggle_ack = 0;
+    if(strcmp(command, "SEND") == 0)
+    {
+    	Board_LED_Toggle(0);
+    	toggle_ack = 0;
+
+    }
+    else if(strcmp(command, "SEND10") == 0)
+    {
+    	Board_LED_Toggle(0);
+    	toggle_ack = 1;
+    }
+    else if(strcmp(command, "CORRUPT") == 0)
+    {
+    	Board_LED_Toggle(0);
+    	toggle_ack = 1;
+
+    }
+    else
+    {
+    	Chip_UART_SendRB(LPC_USART, &txring, incorrect_msg, sizeof(incorrect_msg) - 1);
+    }
+    if (toggle_ack) {
+    	Chip_UART_SendRB(LPC_USART, &txring, ack_msg, sizeof(ack_msg) - 1);
+    }
+}
+
 /**
  * @brief	Main UART program body
  * @return	Always returns 1
@@ -95,6 +127,8 @@ void UART_IRQHandler(void)
 int main(void)
 {
 	uint8_t key;
+	uint8_t index = 0;
+	char command[MAX_COMMAND_LEN];
 	int bytes;
 
 	SystemCoreClockUpdate();
@@ -127,10 +161,23 @@ int main(void)
 
 	/* Poll the receive ring buffer for the ESC (ASCII 27) key */
 	key = 0;
-
 	while (key != 27) {
 		bytes = Chip_UART_ReadRB(LPC_USART, &rxring, &key, 1);
 		if (bytes > 0) {
+			char c = key;
+			if(c != '\n' && c != '\r') {
+				command[index++] = c;
+	            if(index > MAX_COMMAND_LEN)
+	            {
+	                index = 0;
+	            }
+			}
+	        if(c == '\r')
+	        {
+	            command[index] = '\0';
+	            index = 0;
+	            executeCommand(command);
+	        }
 			/* Wrap value back around */
 			if (Chip_UART_SendRB(LPC_USART, &txring, (const uint8_t *) &key, 1) != 1) {
 				Board_LED_Toggle(0);/* Toggle LED if the TX FIFO is full */
@@ -144,3 +191,4 @@ int main(void)
 
 	return 1;
 }
+
