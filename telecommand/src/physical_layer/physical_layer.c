@@ -24,7 +24,7 @@ static uint8_t phy_buffer_arr[BUFFER_SIZE];
 static buffer_t phy_tx_buffer;
 static RINGBUFF_T phy_rx_buffer;
 
-static clcw_t clcw = {0, 0};
+static clcw_t clcw;
 
 static void Init_I2C_PinMux(void);
 static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event);
@@ -46,7 +46,7 @@ void phy_init(void) {
 
 	Chip_I2C_SetMasterEventHandler(i2c_id, Chip_I2C_EventHandler);
 	NVIC_EnableIRQ(I2C0_IRQn);
-
+	clcw_init(&clcw);
 #ifdef I2C_SLAVE
 	RingBuffer_Init(&phy_rx_buffer, (void*)phy_buffer_arr, sizeof(uint8_t), BUFFER_SIZE);
 	i2c_xfer.slaveAddr = (I2C_SLAVE_ADDRESS << 1);
@@ -95,8 +95,8 @@ bool phy_clcw_request(clcw_t * clcw) {
 	return Chip_I2C_MasterRead(i2c_id, I2C_SLAVE_ADDRESS, (uint8_t*)clcw, sizeof(clcw_t));
 }
 
-void phy_set_clcw(clcw_t clcw) {
-
+void phy_set_clcw(clcw_t new_clcw) {
+	clcw = new_clcw;
 }
 
 bool phy_is_activated(void) {
@@ -117,6 +117,9 @@ static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event)
 		/* Each time we get here the base pointer to our buffer has been increased by one and the size of the our buffer
 		 * has been decreased by one.
 		 */
+		if (i2c_xfer.txSz == 0) {
+			i2c_xfer.txSz = sizeof(clcw_t);
+		}
 #ifdef I2C_SLAVE
 		if (Chip_I2C_get_activation_state() == I2C_DEACTIVATED) {
 			phy_is_active = 0;

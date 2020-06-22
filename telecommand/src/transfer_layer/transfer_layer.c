@@ -20,7 +20,7 @@ static uint8_t rx_sequence_number = 0;
 void transfer_layer_init(void) {
 
 	RingBuffer_Init(&code_block_buffer, (void*)code_block_array, sizeof(code_block_t), 512);
-
+	frame_index = 0;
 	latest_frame.length = 0;
 	latest_frame.sequence_number = 0;
 	latest_frame.data = message_array;
@@ -111,7 +111,7 @@ void transfer_layer_run(void) {
 		case FRAME_HEADER: {
 			code_block_t code_block;
 			if (RingBuffer_Pop(&code_block_buffer, &code_block)) {
-				if (frame_index == 0){
+				if (frame_index == 0) {
 					latest_frame.length = code_block.info_field[0];
 					latest_frame.sequence_number = code_block.info_field[1];
 					for (int i = 2; i < CODE_BLOCK_LENGTH; i++) {
@@ -130,8 +130,11 @@ void transfer_layer_run(void) {
 				rx_sequence_number = latest_frame.sequence_number;
 				clcw_t clcw;
 				clcw.CLCW_VERSION = 0b01;
+				clcw.RESERVED = 0;
 				clcw.FRAME_SEQUENCE = rx_sequence_number;
 				coding_layer_set_clcw(clcw);
+				frame_index = 0;
+				state = FRAME_HEADER;
 			} else {
 				code_block_t code_block;
 				if (RingBuffer_Pop(&code_block_buffer, &code_block)) {

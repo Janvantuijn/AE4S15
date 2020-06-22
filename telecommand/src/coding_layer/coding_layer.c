@@ -59,6 +59,7 @@ void coding_layer_run(void) {
 
 				if (start_sequence_index == 2 && start_sequence[0] == CLTU_START_SEQUENCE_MSB && start_sequence[1] == CLTU_START_SEQUENCE_LSB) {
 					// We found the start sequence
+					start_sequence_index = 0;
 					state = DECODE;
 					break;
 				} else if (start_sequence_index == 2) {
@@ -85,8 +86,10 @@ void coding_layer_run(void) {
 				} else {
 					// CRC failure of the received block
 					block_size_count = 0;
+					start_sequence_index = 0;
 					state = SEARCH;
 				}
+				break;
 			} else {
 				uint8_t data;
 				if (phy_get_data(&data)) {

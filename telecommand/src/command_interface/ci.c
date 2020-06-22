@@ -46,7 +46,7 @@
  ****************************************************************************/
 
 static void Init_UART_PinMux(void);
-void executeCommand(char *command, char *msg);
+void executeCommand(char *command, char *msg, uint8_t length);
 static void read_command(char* command);
 static unsigned long hash(unsigned char *str);
 static void authenticate(char* pw);
@@ -56,7 +56,7 @@ STATIC RINGBUFF_T txring, rxring;
 /* Transmit and receive ring buffer sizes */
 #define UART_SRB_SIZE 128	/* Send */
 #define UART_RRB_SIZE 32	/* Receive */
-#define MAX_COMMAND_LEN 7
+#define MAX_COMMAND_LEN 255
 
 /* Transmit and receive buffers */
 static uint8_t rxbuff[UART_RRB_SIZE], txbuff[UART_SRB_SIZE];
@@ -67,7 +67,11 @@ const char incorrect_msg[] = "\r\n Unknown command \r\n";
 const char ack_msg[] = "\r\n ACK \r\n";
 const char unauthenticated_msg[] = "\r\n Unauthenticated \r\n";
 const char authenticated_msg[] = "\r\n Authenticated \r\n";
+const char frame_ack_msg[] = "\r\n Frame ACK \r\n";
+const char frame_nack_msg[] = "\r\n Frame NACK \r\n";
+const char frame_clcw_fail_msg[] = "\r\n CLCW Fail \r\n";
 const char wrong_pw_msg[] = "\r\n Wrong Password \r\n";
+
 static char command[MAX_COMMAND_LEN];
 static uint8_t authenticated = 0;
 static int index = 0;
@@ -105,86 +109,140 @@ void ci_init(void)
 
 void ci_run(void) {
 	// TODO: Add authentication method
-	if (authenticated) {
 		read_command(command);
-	}
-
 }
 
 void read_command(char* command) {
 	uint8_t key;
 	int bytes;
 	bytes = Chip_UART_ReadRB(LPC_USART, &rxring, &key, 1);
-	if (bytes > 0) {
-		char c = key;
-		if(c != '\n' && c != '\r') {
-			command[index++] = c;
-			if(index > MAX_COMMAND_LEN)
-			{
-				index = 0;
+	if (bytes <= 0) {
+		return;
+	}
+	if (key != '\n' && key != '\r' && key != '\b') {
+		if(index < MAX_COMMAND_LEN) {
+			command[index++] = key;
+		}
+	} else if (key == '\b') {
+		if (index > 0) {
+			index--;
+		}
+	} else if (key == '\r') {
+		// String terminate the command
+		command[index] = '\0';
+
+		// Find space character
+		int i;
+		for (i = 0; i < index; i++) {
+			if (command[i] == ' ') {
+				command[i] = '\0';
+				break;
 			}
 		}
-		if(c == '\r')
-		{
-			command[index] = '\0';
-			index = 0;
-			char *ptr = strtok(command, " ");
-			command = ptr;
-			ptr = strtok(NULL, " ");
-			char *msg = ptr;
-			executeCommand(command, msg);
-		}
-		/* Wrap value back around */
-		if (Chip_UART_SendRB(LPC_USART, &txring, (const uint8_t *) &key, 1) != 1) {
-			Board_LED_Toggle(0);/* Toggle LED if the TX FIFO is full */
-		}
+		char *msg = command + i + 1;
+		executeCommand(command, msg, index - i - 1);
+		index = 0;
+
+	}
+
+	/* Wrap value back around */
+	if (Chip_UART_SendRB(LPC_USART, &txring, (const uint8_t *) &key, 1) != 1) {
+		Board_LED_Toggle(0);/* Toggle LED if the TX FIFO is full */
 	}
 }
 
-void executeCommand(char *command, char *msg)
+void executeCommand(char *command, char *msg, uint8_t length)
 {
 	uint8_t toggle_ack = 0;
+	int16_t seq;
     if (authenticated) {
-		if(strcmp(command, "SEND") == 0)
-		{
-			Board_LED_Toggle(0); //TODO: add function call
-			transfer_layer_send_message(msg, sizeof(msg) - 1);
-			toggle_ack = 1;
+		if(strcmp(command, "SEND") == 0) {
+			Board_LED_Toggle(0);
+			seq = transfer_layer_send_message(msg, length);
+			if (seq >= 0) {
+				ack_response_t ack = CLCW_NOT_UPDATED;
+				while (ack == CLCW_NOT_UPDATED) {
+					ack = transfer_layer_check_ack(seq);
+				};
+				switch (ack) {
+					case CLCW_ACK:
+						Chip_UART_SendRB(LPC_USART, &txring, frame_ack_msg, sizeof(frame_ack_msg) - 1);
+						break;
+					case CLCW_NACK:
+						Chip_UART_SendRB(LPC_USART, &txring, frame_nack_msg, sizeof(frame_nack_msg) - 1);
+						break;
+					case CLCW_READ_FAIL:
+						Chip_UART_SendRB(LPC_USART, &txring, frame_clcw_fail_msg, sizeof(frame_clcw_fail_msg) - 1);
+						break;
+					default:
+						break;
+				}
+			}
 
-		}
-		else if(strcmp(command, "SEND10") == 0)
-		{
-			Board_LED_Toggle(0); //TODO: add function call
+			toggle_ack = 1;
+		} else if(strcmp(command, "SEND10") == 0) {
+			Board_LED_Toggle(0);
 			for (int i = 0; i < 10; i++) {
-				transfer_layer_send_message(msg, sizeof(msg) - 1);
+				seq = transfer_layer_send_message(msg, length);
+				if (seq >= 0) {
+					ack_response_t ack = CLCW_NOT_UPDATED;
+					while (ack == CLCW_NOT_UPDATED) {
+						ack = transfer_layer_check_ack(seq);
+					};
+					switch (ack) {
+						case CLCW_ACK:
+							Chip_UART_SendRB(LPC_USART, &txring, frame_ack_msg, sizeof(frame_ack_msg) - 1);
+							break;
+						case CLCW_NACK:
+							Chip_UART_SendRB(LPC_USART, &txring, frame_nack_msg, sizeof(frame_nack_msg) - 1);
+							break;
+						case CLCW_READ_FAIL:
+							Chip_UART_SendRB(LPC_USART, &txring, frame_clcw_fail_msg, sizeof(frame_clcw_fail_msg) - 1);
+							break;
+						default:
+							break;
+					}
+				}
 			}
 			toggle_ack = 1;
-		}
-		else if(strcmp(command, "CORRUPT") == 0)
-		{
-			Board_LED_Toggle(0); //TODO: add function call
+		} else if(strcmp(command, "CORRUPT") == 0) {
+			Board_LED_Toggle(0);
 			crc_set_offset(1);
-			transfer_layer_send_message(msg, sizeof(msg) - 1);
+			seq = transfer_layer_send_message(msg, length);
+			if (seq >= 0) {
+				ack_response_t ack = CLCW_NOT_UPDATED;
+				while (ack == CLCW_NOT_UPDATED) {
+					ack = transfer_layer_check_ack(seq);
+				};
+				switch (ack) {
+					case CLCW_ACK:
+						Chip_UART_SendRB(LPC_USART, &txring, frame_ack_msg, sizeof(frame_ack_msg) - 1);
+						break;
+					case CLCW_NACK:
+						Chip_UART_SendRB(LPC_USART, &txring, frame_nack_msg, sizeof(frame_nack_msg) - 1);
+						break;
+					case CLCW_READ_FAIL:
+						Chip_UART_SendRB(LPC_USART, &txring, frame_clcw_fail_msg, sizeof(frame_clcw_fail_msg) - 1);
+						break;
+					default:
+						break;
+				}
+			}
 			crc_set_offset(0);
 			toggle_ack = 1;
-
-		}
-		else
-		{
+		} else {
 			Chip_UART_SendRB(LPC_USART, &txring, incorrect_msg, sizeof(incorrect_msg) - 1);
 		}
-    } else if(strcmp(command, "AUTH") != 0) {
-		Chip_UART_SendRB(LPC_USART, &txring, unauthenticated_msg, sizeof(unauthenticated_msg) - 1);
-	}
-    if (authenticated == 0) {
-		if(strcmp(command, "AUTH") == 0)
-		{
+    } else {
+		if(strcmp(command, "AUTH") == 0) {
 			authenticate(msg);
-			Board_LED_Toggle(0); //TODO: add function call
+			Board_LED_Toggle(0);
 			toggle_ack = 1;
-
+		} else {
+			Chip_UART_SendRB(LPC_USART, &txring, unauthenticated_msg, sizeof(unauthenticated_msg) - 1);
 		}
 	}
+
     if (toggle_ack) {
     	Chip_UART_SendRB(LPC_USART, &txring, ack_msg, sizeof(ack_msg) - 1);
     }
