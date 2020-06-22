@@ -23,9 +23,14 @@
 #include "physical_layer.h"
 #include "coding_layer.h"
 #include "transfer_layer.h"
+#include "ci.h"
+#include "monitor.h"
 // TODO: insert other definitions and declarations here
 
-cltu_t cltu;
+#ifdef SATELLITE
+    uint8_t data[255];
+    uint8_t length = 0;
+#endif 
 
 int main(void) {
 
@@ -45,31 +50,37 @@ int main(void) {
     phy_init();
     coding_layer_init();
     transfer_layer_init();
+    
+#ifdef GROUNDSTATION    
+    ci_init();
+#else
+    monitor_init();
+#endif
 
     while(1) {
 #ifdef GROUNDSTATION
-        const uint8_t data[12] = "Hello World!";
-        int16_t frame_number;
-
-    	// Send message
-     	frame_number = transfer_layer_send_message(data, 12);
-
-//     	// Check acknowledge
-     	ack_response_t ack = CLCW_NOT_UPDATED;
-    	while (ack == CLCW_NOT_UPDATED) {
-    		ack = transfer_layer_check_ack(frame_number);
-    	}
+warning "Build for ground station"
+    	ci_run();
+    	//        const uint8_t data[12] = "Hello World!";
+//        int16_t frame_number;
+//
+//    	// Send message
+//     	frame_number = transfer_layer_send_message(data, 12);
+//
+////     	// Check acknowledge
+//     	ack_response_t ack = CLCW_NOT_UPDATED;
+//    	while (ack == CLCW_NOT_UPDATED) {
+//    		ack = transfer_layer_check_ack(frame_number);
+//    	}
 
 #else
-    	uint8_t data[12];
-    	uint8_t length = 12;
-
+#warning "Build for satellite"
     	coding_layer_run();
     	transfer_layer_run();
 
     	int16_t ret = transfer_layer_receive_message(data, &length);
     	if (ret >= 0) {
-    		ret++;
+    		monitor_send(data, length);
     	}
 #endif
     }

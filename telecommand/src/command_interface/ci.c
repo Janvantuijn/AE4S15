@@ -29,13 +29,25 @@
  * this code.
  */
 
-#include "chip.h"
-#include "board.h"
+#if defined (__USE_LPCOPEN)
+	#if defined(NO_BOARD_LIB)
+		#include "chip.h"
+	#else
+		#include "board.h"
+	#endif
+#endif
 #include "string.h"
+#include "ci.h"
+#include "transfer_layer.h"
+#include "crc.h"
 
 /*****************************************************************************
  * Private types/enumerations/variables
  ****************************************************************************/
+
+static void Init_UART_PinMux(void);
+static void executeCommand(char *command);
+static void read_command(char* command);
 
 /* Transmit and receive ring buffers */
 STATIC RINGBUFF_T txring, rxring;
@@ -52,6 +64,9 @@ const char start_msg[] = "Telecommander CI\r\n";
 const char inst2[] = "Use SEND, SEND10, CORRUPT as commands\r\n";
 const char incorrect_msg[] = "\r\n Unknown command \r\n";
 const char ack_msg[] = "\r\n ACK \r\n";
+static char command[MAX_COMMAND_LEN];
+static uint8_t authenticated = 1;
+static int index = 0;
 
 /**
  * @brief	Main UART program body
@@ -59,10 +74,7 @@ const char ack_msg[] = "\r\n ACK \r\n";
  */
 void ci_init(void)
 {
-	int bytes;
-	uint8_t authenticated = 1;
 	Init_UART_PinMux();
-	char command[MAX_COMMAND_LEN];
 
 	/* Setup UART for 115.2K8N1 */
 	Chip_UART_Init(LPC_USART);
@@ -85,12 +97,12 @@ void ci_init(void)
 
 	/* Send initial messages */
 	Chip_UART_SendRB(LPC_USART, &txring, start_msg, sizeof(start_msg) - 1);
+}
 
+void ci_run(void) {
 	// TODO: Add authentication method
 	if (authenticated) {
-		while (1) {
-			read_command(&command);
-		}
+		read_command(command);
 	}
 
 }
@@ -127,17 +139,24 @@ void executeCommand(char *command)
     if(strcmp(command, "SEND") == 0)
     {
     	Board_LED_Toggle(0); //TODO: add function call
+    	transfer_layer_send_message("Hello!", 6);
     	toggle_ack = 1;
 
     }
     else if(strcmp(command, "SEND10") == 0)
     {
     	Board_LED_Toggle(0); //TODO: add function call
+    	for (int i = 0; i < 10; i++) {
+    		transfer_layer_send_message("Hello!", 6);
+    	}
     	toggle_ack = 1;
     }
     else if(strcmp(command, "CORRUPT") == 0)
     {
     	Board_LED_Toggle(0); //TODO: add function call
+    	crc_set_offset(1);
+    	transfer_layer_send_message("Hello!", 6);
+    	crc_set_offset(0);
     	toggle_ack = 1;
 
     }

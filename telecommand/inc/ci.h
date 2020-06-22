@@ -2,7 +2,6 @@
 #define CI_H
 
 void ci_init(void);
-void executeCommand(char *command);
-void read_command(char* command);
+void ci_run(void);
 
 #endif // CI_H

@@ -7,6 +7,8 @@
 
 #include "crc.h"
 
+static uint16_t crc_offset = 0;
+
 uint16_t crc(uint8_t * buf, size_t len)
 {
  	uint16_t crc = 0xFFFF;
@@ -24,7 +26,11 @@ uint16_t crc(uint8_t * buf, size_t len)
     	}
   }
   // Note, this number has low and high bytes swapped, so use it accordingly (or swap bytes)
-  return crc; 
+  return crc + crc_offset;
+}
+
+void crc(uint16_t offset) {
+	crc_offset = offset;
 }
 
 
