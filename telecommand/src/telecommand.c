@@ -23,8 +23,11 @@
 #include "physical_layer.h"
 #include "coding_layer.h"
 #include "transfer_layer.h"
-#include "ci.h"
-#include "monitor.h"
+#ifdef SATELLITE
+	#include "monitor.h"
+#else
+	#include "ci.h"
+#endif
 // TODO: insert other definitions and declarations here
 
 #ifdef SATELLITE
@@ -59,15 +62,16 @@ int main(void) {
 
     while(1) {
 #ifdef GROUNDSTATION
-warning "Build for ground station"
+#warning "Build for ground station"
     	ci_run();
+
     	//        const uint8_t data[12] = "Hello World!";
 //        int16_t frame_number;
 //
 //    	// Send message
 //     	frame_number = transfer_layer_send_message(data, 12);
 //
-////     	// Check acknowledge
+//  	// Check acknowledge
 //     	ack_response_t ack = CLCW_NOT_UPDATED;
 //    	while (ack == CLCW_NOT_UPDATED) {
 //    		ack = transfer_layer_check_ack(frame_number);

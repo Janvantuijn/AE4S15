@@ -59,12 +59,13 @@ int16_t transfer_layer_receive_message(uint8_t * data, uint8_t * length) {
 		for (int i = 0; i < *length; i++) {
 			data[i] = latest_frame.data[i];
 		}
+		frame_complete = false;
 		return latest_frame.sequence_number;
 	} else if (frame_complete) {
 		for (int i = 0; i < *length; i++) {
 			data[i] = latest_frame.data[i];
 		}
-
+		frame_complete = false;
 		return latest_frame.sequence_number;
 	} else {
 		*length = 0;
@@ -127,7 +128,9 @@ void transfer_layer_run(void) {
 			if (frame_index >= latest_frame.length) {
 				frame_complete = true;
 				rx_sequence_number = latest_frame.sequence_number;
-				clcw_t clcw = {0b01000000, rx_sequence_number};
+				clcw_t clcw;
+				clcw.CLCW_VERSION = 0b01;
+				clcw.FRAME_SEQUENCE = rx_sequence_number;
 				coding_layer_set_clcw(clcw);
 			} else {
 				code_block_t code_block;

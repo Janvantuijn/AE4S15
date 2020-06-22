@@ -29,7 +29,7 @@ uint16_t crc(uint8_t * buf, size_t len)
   return crc + crc_offset;
 }
 
-void crc(uint16_t offset) {
+void crc_set_offset(uint16_t offset) {
 	crc_offset = offset;
 }
 
