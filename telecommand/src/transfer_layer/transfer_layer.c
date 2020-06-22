@@ -14,7 +14,8 @@ static uint8_t code_block_array[512];
 
 static transfer_decoding_state_t state = FRAME_HEADER;
 
-static uint8_t frame_sequence_number = 0;
+static uint8_t tx_sequence_number = 0;
+static uint8_t rx_sequence_number = 0;
 
 void transfer_layer_init(void) {
 
@@ -39,7 +40,7 @@ int16_t transfer_layer_send_message(uint8_t * data, const uint8_t length) {
 
     // Create frame
     frame.length = length + 2;
-    frame.sequence_number = frame_sequence_number++;
+    frame.sequence_number = tx_sequence_number++;
     frame.data = data;
 
     // Give frame to the coding layer
@@ -90,10 +91,8 @@ ack_response_t transfer_layer_check_ack(uint8_t sequence_number) {
 	if (!ret) {
 		return CLCW_READ_FAIL;
 	} else {
-		if (clcw.FRAME_SEQUENCE == sequence_number && clcw.RETRANSMIT == 0) {
+		if (clcw.FRAME_SEQUENCE == sequence_number) {
 			return CLCW_ACK;
-		} else if (clcw.FRAME_SEQUENCE == sequence_number) {
-			return CLCW_NOT_UPDATED;
 		} else {
 			return CLCW_NACK;
 		}
@@ -127,6 +126,9 @@ void transfer_layer_run(void) {
 
 			if (frame_index >= latest_frame.length) {
 				frame_complete = true;
+				rx_sequence_number = latest_frame.sequence_number;
+				clcw_t clcw = {0b01000000, rx_sequence_number};
+				coding_layer_set_clcw(clcw);
 			} else {
 				code_block_t code_block;
 				if (RingBuffer_Pop(&code_block_buffer, &code_block)) {

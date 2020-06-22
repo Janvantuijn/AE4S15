@@ -19,10 +19,12 @@ static I2C_XFER_T i2c_xfer;
 static uint8_t i2c_buffer[I2C_BUFFER_SIZE];
 
 // PHY structs and buffers
-static volatile uint8_t phy_buffer_arr[BUFFER_SIZE];
+static uint8_t phy_buffer_arr[BUFFER_SIZE];
 
 static buffer_t phy_tx_buffer;
 static RINGBUFF_T phy_rx_buffer;
+
+static clcw_t clcw = {0, 0};
 
 static void Init_I2C_PinMux(void);
 static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event);
@@ -48,9 +50,9 @@ void phy_init(void) {
 #ifdef I2C_SLAVE
 	RingBuffer_Init(&phy_rx_buffer, (void*)phy_buffer_arr, sizeof(uint8_t), BUFFER_SIZE);
 	i2c_xfer.slaveAddr = (I2C_SLAVE_ADDRESS << 1);
-	i2c_xfer.txBuff = NULL;
+	i2c_xfer.txBuff = (uint8_t*)&clcw;
 	i2c_xfer.rxBuff = i2c_buffer;
-	i2c_xfer.txSz = 0;
+	i2c_xfer.txSz = sizeof(clcw_t);
 	i2c_xfer.rxSz = I2C_BUFFER_SIZE;
 	Chip_I2C_SlaveSetup(i2c_id, I2C_SLAVE_0, &i2c_xfer, i2c_slave_phy_events, 0);
 #else
@@ -93,6 +95,10 @@ bool phy_clcw_request(clcw_t * clcw) {
 	return Chip_I2C_MasterRead(i2c_id, I2C_SLAVE_ADDRESS, (uint8_t*)clcw, sizeof(clcw_t));
 }
 
+void phy_set_clcw(clcw_t clcw) {
+
+}
+
 bool phy_is_activated(void) {
 	return (phy_is_active == 1);
 }
@@ -106,18 +112,7 @@ static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event)
 {
 	switch (event) {
 	case I2C_EVENT_DONE: // Done event that wakes up Wait event
-		// Reset buffer pointer and buffer size to original
-		i2c_xfer.rxBuff = i2c_buffer;
-		i2c_xfer.rxSz = I2C_BUFFER_SIZE;
-#ifdef I2C_SLAVE
-
-#else
-		//TODO
-		//i2c_xfer.txBuff = i2c_buffer;
-		//i2c_xfer.txSz++;
-#endif
 		break;
-
 	case I2C_EVENT_SLAVE_RX: // Slave receive event
 		/* Each time we get here the base pointer to our buffer has been increased by one and the size of the our buffer
 		 * has been decreased by one.
@@ -154,6 +149,11 @@ static void i2c_slave_phy_events(I2C_ID_T id, I2C_EVENT_T event)
 //			break;
 //		}
 	case I2C_EVENT_SLAVE_TX: // Slave transmit event
+		// Send the CLCW
+		if (i2c_xfer.txSz == 0) {
+			i2c_xfer.txBuff = (uint8_t*)&clcw;
+			i2c_xfer.txSz = sizeof(clcw_t);
+		}
 #ifdef I2C_MASTER
 
 #endif

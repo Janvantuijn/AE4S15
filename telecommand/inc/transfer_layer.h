@@ -31,5 +31,6 @@ ack_response_t transfer_layer_check_ack(uint8_t sequence_number);
 int16_t transfer_layer_receive_message(uint8_t * data, uint8_t * length);
 void transfer_layer_add_code_block(const code_block_t * block);
 
+
 #endif // TRANSFER_LAYER_H
 

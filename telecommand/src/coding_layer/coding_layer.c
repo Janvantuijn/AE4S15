@@ -32,6 +32,10 @@ bool coding_layer_receive_ack(clcw_t * clcw) {
 	return phy_clcw_request(clcw);
 }
 
+void coding_layer_set_clcw(clcw_t clcw) {
+	phy_set_clcw(clcw);
+}
+
 void coding_layer_run(void) {
 	switch(state) {
 		case INACTIVE:

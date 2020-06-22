@@ -20,6 +20,7 @@ typedef enum {
 void coding_layer_init(void);
 bool coding_layer_transmit_frame(const frame_t * frame);
 bool coding_layer_receive_ack(clcw_t * clcw);
+void coding_layer_set_clcw(clcw_t clcw);
 void coding_layer_run(void);
 
 #endif // CODING_LAYER_H
