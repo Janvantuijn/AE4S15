@@ -46,7 +46,7 @@
  ****************************************************************************/
 
 static void Init_UART_PinMux(void);
-static void executeCommand(char *command);
+void executeCommand(char *command, char *msg);
 static void read_command(char* command);
 static unsigned long hash(unsigned char *str);
 static void authenticate(char* pw);

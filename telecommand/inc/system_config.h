@@ -1,8 +1,8 @@
 
 // Define whether this build is for a satellite or ground station
-#define GROUNDSTATION
+//#define GROUNDSTATION
 //#define SATELLITE
-
+#define GROUNDSTATION
 
 #ifdef GROUNDSTATION
 	#define I2C_MASTER
