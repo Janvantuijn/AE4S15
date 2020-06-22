@@ -128,7 +128,11 @@ void read_command(char* command) {
 		{
 			command[index] = '\0';
 			index = 0;
-			executeCommand(command);
+			char *ptr = strtok(command, " ");
+			command = ptr;
+			ptr = strtok(NULL, " ");
+			char *msg = ptr;
+			executeCommand(command, msg);
 		}
 		/* Wrap value back around */
 		if (Chip_UART_SendRB(LPC_USART, &txring, (const uint8_t *) &key, 1) != 1) {
