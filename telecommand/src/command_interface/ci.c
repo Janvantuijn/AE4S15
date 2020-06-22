@@ -48,7 +48,8 @@
 static void Init_UART_PinMux(void);
 static void executeCommand(char *command);
 static void read_command(char* command);
-
+static unsigned long hash(unsigned char *str);
+static void authenticate(char* pw);
 /* Transmit and receive ring buffers */
 STATIC RINGBUFF_T txring, rxring;
 
@@ -64,8 +65,11 @@ const char start_msg[] = "Telecommander CI\r\n";
 const char inst2[] = "Use SEND, SEND10, CORRUPT as commands\r\n";
 const char incorrect_msg[] = "\r\n Unknown command \r\n";
 const char ack_msg[] = "\r\n ACK \r\n";
+const char unauthenticated_msg[] = "\r\n Unauthenticated \r\n";
+const char authenticated_msg[] = "\r\n Authenticated \r\n";
+const char wrong_pw_msg[] = "\r\n Wrong Password \r\n";
 static char command[MAX_COMMAND_LEN];
-static uint8_t authenticated = 1;
+static uint8_t authenticated = 0;
 static int index = 0;
 
 /**
@@ -133,37 +137,50 @@ void read_command(char* command) {
 	}
 }
 
-void executeCommand(char *command)
+void executeCommand(char *command, char *msg)
 {
 	uint8_t toggle_ack = 0;
-    if(strcmp(command, "SEND") == 0)
-    {
-    	Board_LED_Toggle(0); //TODO: add function call
-    	transfer_layer_send_message("Hello!", 6);
-    	toggle_ack = 1;
+    if (authenticated) {
+		if(strcmp(command, "SEND") == 0)
+		{
+			Board_LED_Toggle(0); //TODO: add function call
+			transfer_layer_send_message(msg, sizeof(msg) - 1);
+			toggle_ack = 1;
 
-    }
-    else if(strcmp(command, "SEND10") == 0)
-    {
-    	Board_LED_Toggle(0); //TODO: add function call
-    	for (int i = 0; i < 10; i++) {
-    		transfer_layer_send_message("Hello!", 6);
-    	}
-    	toggle_ack = 1;
-    }
-    else if(strcmp(command, "CORRUPT") == 0)
-    {
-    	Board_LED_Toggle(0); //TODO: add function call
-    	crc_set_offset(1);
-    	transfer_layer_send_message("Hello!", 6);
-    	crc_set_offset(0);
-    	toggle_ack = 1;
+		}
+		else if(strcmp(command, "SEND10") == 0)
+		{
+			Board_LED_Toggle(0); //TODO: add function call
+			for (int i = 0; i < 10; i++) {
+				transfer_layer_send_message(msg, sizeof(msg) - 1);
+			}
+			toggle_ack = 1;
+		}
+		else if(strcmp(command, "CORRUPT") == 0)
+		{
+			Board_LED_Toggle(0); //TODO: add function call
+			crc_set_offset(1);
+			transfer_layer_send_message(msg, sizeof(msg) - 1);
+			crc_set_offset(0);
+			toggle_ack = 1;
 
-    }
-    else
-    {
-    	Chip_UART_SendRB(LPC_USART, &txring, incorrect_msg, sizeof(incorrect_msg) - 1);
-    }
+		}
+		else
+		{
+			Chip_UART_SendRB(LPC_USART, &txring, incorrect_msg, sizeof(incorrect_msg) - 1);
+		}
+    } else if(strcmp(command, "AUTH") != 0) {
+		Chip_UART_SendRB(LPC_USART, &txring, unauthenticated_msg, sizeof(unauthenticated_msg) - 1);
+	}
+    if (authenticated == 0) {
+		if(strcmp(command, "AUTH") == 0)
+		{
+			authenticate(msg);
+			Board_LED_Toggle(0); //TODO: add function call
+			toggle_ack = 1;
+
+		}
+	}
     if (toggle_ack) {
     	Chip_UART_SendRB(LPC_USART, &txring, ack_msg, sizeof(ack_msg) - 1);
     }
@@ -205,4 +222,26 @@ void UART_IRQHandler(void)
 	/* Use default ring buffer handler. Override this with your own
 	   code if you need more capability. */
 	Chip_UART_IRQRBHandler(LPC_USART, &rxring, &txring);
+}
+
+void authenticate(char* pw) {
+	unsigned long hashed = 402054200; // password
+	unsigned long t = hash(pw);
+	if (t == hashed) {
+		authenticated = 1;
+    	Chip_UART_SendRB(LPC_USART, &txring, authenticated_msg, sizeof(authenticated_msg) - 1);
+	} else {
+    	Chip_UART_SendRB(LPC_USART, &txring, wrong_pw_msg, sizeof(wrong_pw_msg) - 1);
+	}
+}
+
+unsigned long hash(unsigned char *str)
+{
+    unsigned long hash = 5381;
+    int c;
+
+    while (c = *str++)
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+    return hash;
 }

@@ -43,7 +43,8 @@ STATIC RINGBUFF_T txring, rxring;
 /* Transmit and receive ring buffer sizes */
 #define UART_SRB_SIZE 128	/* Send */
 #define UART_RRB_SIZE 32	/* Receive */
-#define MAX_COMMAND_LEN 7
+#define MAX_COMMAND_LEN 16
+#define MAX_MSG_LEN 8
 
 /* Transmit and receive buffers */
 static uint8_t rxbuff[UART_RRB_SIZE], txbuff[UART_SRB_SIZE];
@@ -52,6 +53,24 @@ const char inst1[] = "Telecommander CI\r\n";
 const char inst2[] = "Use SEND, SEND10, CORRUPT as commands\r\n";
 const char incorrect_msg[] = "Incorrect command. \r\n";
 const char ack_msg[] = "\r\n ACK \r\n";
+const char unauthenticated_msg[] = "\r\n Unauthenticated \r\n";
+const char authenticated_msg[] = "\r\n Authenticated \r\n";
+const char wrong_pw_msg[] = "\r\n Wrong Password \r\n";
+static char command[MAX_COMMAND_LEN];
+static uint8_t authenticated = 0;
+static int index = 0;
+
+unsigned long hash(unsigned char *str)
+{
+    unsigned long hash = 5381;
+    int c;
+
+    while (c = *str++)
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+    return hash;
+}
+
 /*****************************************************************************
  * Public types/enumerations/variables
  ****************************************************************************/
@@ -91,30 +110,91 @@ void UART_IRQHandler(void)
 	Chip_UART_IRQRBHandler(LPC_USART, &rxring, &txring);
 }
 
-void executeCommand(char *command)
+void authenticate(char* pw) {
+	unsigned long hashed = 402054200; // password
+	unsigned long t = hash(pw);
+	if (t == hashed) {
+		authenticated = 1;
+    	Chip_UART_SendRB(LPC_USART, &txring, authenticated_msg, sizeof(authenticated_msg) - 1);
+	} else {
+    	Chip_UART_SendRB(LPC_USART, &txring, wrong_pw_msg, sizeof(wrong_pw_msg) - 1);
+	}
+}
+
+void read_command(char* command) {
+	uint8_t key;
+	int bytes;
+	bytes = Chip_UART_ReadRB(LPC_USART, &rxring, &key, 1);
+	if (bytes > 0) {
+		char c = key;
+		if(c != '\n' && c != '\r') {
+			command[index++] = c;
+			if(index > MAX_COMMAND_LEN)
+			{
+				index = 0;
+			}
+		}
+		if(c == '\r')
+		{
+			command[index] = '\0';
+			index = 0;
+			char *ptr = strtok(command, " ");
+			command = ptr;
+			ptr = strtok(NULL, " ");
+			char *msg = ptr;
+			executeCommand(command, msg);
+		}
+		/* Wrap value back around */
+		if (Chip_UART_SendRB(LPC_USART, &txring, (const uint8_t *) &key, 1) != 1) {
+			Board_LED_Toggle(0);/* Toggle LED if the TX FIFO is full */
+		}
+	}
+}
+
+void executeCommand(char *command, char *msg)
 {
 	uint8_t toggle_ack = 0;
-    if(strcmp(command, "SEND") == 0)
-    {
-    	Board_LED_Toggle(0);
-    	toggle_ack = 0;
+    if (authenticated) {
+		if(strcmp(command, "SEND") == 0)
+		{
+			Board_LED_Toggle(0); //TODO: add function call
+	//    	transfer_layer_send_message("Hello!", 6);
+			toggle_ack = 1;
 
-    }
-    else if(strcmp(command, "SEND10") == 0)
-    {
-    	Board_LED_Toggle(0);
-    	toggle_ack = 1;
-    }
-    else if(strcmp(command, "CORRUPT") == 0)
-    {
-    	Board_LED_Toggle(0);
-    	toggle_ack = 1;
+		}
+		else if(strcmp(command, "SEND10") == 0)
+		{
+			Board_LED_Toggle(0); //TODO: add function call
+	//    	for (int i = 0; i < 10; i++) {
+	//    		transfer_layer_send_message("Hello!", 6);
+	//    	}
+			toggle_ack = 1;
+		}
+		else if(strcmp(command, "CORRUPT") == 0)
+		{
+			Board_LED_Toggle(0); //TODO: add function call
+	//    	crc_set_offset(1);
+	//    	transfer_layer_send_message("Hello!", 6);
+	//    	crc_set_offset(0);
+			toggle_ack = 1;
 
+		}
+		else
+		{
+			Chip_UART_SendRB(LPC_USART, &txring, incorrect_msg, sizeof(incorrect_msg) - 1);
+		}
+    } else if(strcmp(command, "AUTH") != 0) {
+    	Chip_UART_SendRB(LPC_USART, &txring, unauthenticated_msg, sizeof(unauthenticated_msg) - 1);
     }
-    else
-    {
-    	Chip_UART_SendRB(LPC_USART, &txring, incorrect_msg, sizeof(incorrect_msg) - 1);
-    }
+    if (authenticated == 0) {
+		if(strcmp(command, "AUTH") == 0)
+		{
+			authenticate(msg);
+			Board_LED_Toggle(0); //TODO: add function call
+			toggle_ack = 1;
+
+		}
+	}
     if (toggle_ack) {
     	Chip_UART_SendRB(LPC_USART, &txring, ack_msg, sizeof(ack_msg) - 1);
     }
@@ -162,27 +242,7 @@ int main(void)
 	/* Poll the receive ring buffer for the ESC (ASCII 27) key */
 	key = 0;
 	while (key != 27) {
-		bytes = Chip_UART_ReadRB(LPC_USART, &rxring, &key, 1);
-		if (bytes > 0) {
-			char c = key;
-			if(c != '\n' && c != '\r') {
-				command[index++] = c;
-	            if(index > MAX_COMMAND_LEN)
-	            {
-	                index = 0;
-	            }
-			}
-	        if(c == '\r')
-	        {
-	            command[index] = '\0';
-	            index = 0;
-	            executeCommand(command);
-	        }
-			/* Wrap value back around */
-			if (Chip_UART_SendRB(LPC_USART, &txring, (const uint8_t *) &key, 1) != 1) {
-				Board_LED_Toggle(0);/* Toggle LED if the TX FIFO is full */
-			}
-		}
+		read_command(command);
 	}
 
 	/* DeInitialize UART0 peripheral */
