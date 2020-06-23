@@ -19,6 +19,7 @@
 #include <cr_section_macros.h>
 
 // TODO: insert other include files here
+#include "watchdog.h"
 #include "system_config.h"
 #include "physical_layer.h"
 #include "coding_layer.h"
@@ -49,7 +50,7 @@ int main(void) {
 #endif
 #endif
 
-
+    watchdog_init();
     phy_init();
     coding_layer_init();
     transfer_layer_init();
@@ -61,6 +62,7 @@ int main(void) {
 #endif
 
     while(1) {
+    	watchdog_reset();
 #ifdef GROUNDSTATION
 #warning "Build for ground station"
     	ci_run();

@@ -167,9 +167,8 @@ int main(void)
 
 	/* Start watchdog */
 	Chip_WWDT_Start(LPC_WWDT);
+}
 
-	/* Idle while waiting */
-	while (1) {
-		__WFI();
-	}
+void watchdog_reset(void) {
+	Chip_WWDT_Feed(pWWDT);
 }
