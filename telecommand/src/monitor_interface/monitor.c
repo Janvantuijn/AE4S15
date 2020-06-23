@@ -4,7 +4,7 @@ static void Init_UART_PinMux(void);
 
 STATIC RINGBUFF_T txring, rxring;
 
-#define TX_BUFFER_SIZE 255
+#define TX_BUFFER_SIZE 256
 static uint8_t txbuff[TX_BUFFER_SIZE];
 static uint8_t rxbuff[1];
 
@@ -33,6 +33,8 @@ void monitor_init(void) {
 
 void monitor_send(const uint8_t * data, uint8_t length) {
     Chip_UART_SendRB(LPC_USART, &txring, data, length);
+    uint8_t newline[2] = "\n\r";
+    Chip_UART_SendRB(LPC_USART, &txring, &newline, 2);
 }
 
 static void Init_UART_PinMux(void)
@@ -47,3 +49,14 @@ static void Init_UART_PinMux(void)
 #error "No Pin muxing defined for UART operation"
 #endif
 }
+
+#ifdef SATELLITE
+void UART_IRQHandler(void)
+{
+	/* Want to handle any errors? Do it here. */
+
+	/* Use default ring buffer handler. Override this with your own
+	   code if you need more capability. */
+	Chip_UART_IRQRBHandler(LPC_USART, &rxring, &txring);
+}
+#endif

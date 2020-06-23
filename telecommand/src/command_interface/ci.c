@@ -277,6 +277,7 @@ static void Init_UART_PinMux(void)
  * @brief	UART interrupt handler using ring buffers
  * @return	Nothing
  */
+#ifdef GROUNDSTATION
 void UART_IRQHandler(void)
 {
 	/* Want to handle any errors? Do it here. */
@@ -285,7 +286,7 @@ void UART_IRQHandler(void)
 	   code if you need more capability. */
 	Chip_UART_IRQRBHandler(LPC_USART, &rxring, &txring);
 }
-
+#endif
 void authenticate(char* pw) {
 	unsigned long hashed = 402054200; // password
 	unsigned long t = hash(pw);

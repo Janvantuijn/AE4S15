@@ -2,6 +2,7 @@
 #define MONITOR_H
 
 #include <stdint.h>
+#include "system_config.h"
 
 #if defined (__USE_LPCOPEN)
 	#if defined(NO_BOARD_LIB)
